@@ -1,0 +1,8 @@
+__pycache__/
+build/
+dist/
+*.csv
+!kecamatan.csv
+*.xlsx
+*.xlsm
+sumber_data.txt
