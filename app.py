@@ -8,6 +8,8 @@ import analisis as A
 import grafik as G
 import muat_data as M
 
+import textwrap
+
 JUDUL = "Dasboard Kampung KB"
 BASE_DIR = Path(__file__).parent
 CSV_DEFAULT = Path("data.csv")         
@@ -34,9 +36,10 @@ def lebar_penuh(fungsi) -> dict:
     """Streamlit baru memakai width='stretch'; versi lama use_container_width=True."""
     return {"width": "stretch"} if "width" in inspect.signature(fungsi).parameters else {"use_container_width": True}
 
-
-CONFIG_GRAFIK = {"displaylogo": False, "toImageButtonOptions": {"format": "png", "scale": 2}}   # ikon kamera = unduh PNG
-
+CONFIG_GRAFIK = {"displaylogo": False,
+                 "modeBarButtonsToRemove": ["zoom2d", "pan2d", "select2d", "lasso2d", "zoomIn2d",
+                                            "zoomOut2d", "autoScale2d", "resetScale2d"],
+                 "toImageButtonOptions": {"format": "png", "scale": 2}}
 
 def kartu(tempat, fig):
     """Taruh satu grafik di dalam kartu putih."""
@@ -44,6 +47,25 @@ def kartu(tempat, fig):
         with st.container(border=True):
             st.plotly_chart(fig, config=CONFIG_GRAFIK, **lebar_penuh(st.plotly_chart))
 
+@st.dialog("Data lengkap", width="large")
+
+def tampil_lengkap(data, judul, lebar_label=34):
+    lebar = 50
+    baris = max(len(textwrap.wrap(str(t), lebar)) or 1 for t in data["label"])
+    tinggi = 110 + len(data) * max(30, baris * 17 + 12)
+    st.markdown(f"**{judul}** · {len(data)} data")
+    st.plotly_chart(G.batang_mendatar(data, "", tinggi, lebar_label=lebar),
+                    config=CONFIG_GRAFIK, **lebar_penuh(st.plotly_chart))
+
+
+def kartu_top(tempat, data, judul, kunci, n=3, tinggi=200):
+    """n teratas di halaman. Tombol 'Lihat semua' membuka data lengkap di jendela besar."""
+    with tempat:
+        with st.container(border=True):
+            st.plotly_chart(G.batang_mendatar(data.head(n), f"{judul} ({n} teratas)", tinggi),
+                            config=CONFIG_GRAFIK, **lebar_penuh(st.plotly_chart))
+            if len(data) > n and st.button(f"Lihat semua ({len(data)})", key=kunci):
+                tampil_lengkap(data, judul)
 
 def angka(n) -> str:
     """1101 -> '1.101'"""
@@ -132,6 +154,17 @@ st.sidebar.multiselect("Kelurahan", opsi_kel, key="f_kel", placeholder="Semua ke
 st.sidebar.selectbox("Tahun kegiatan", opsi_tahun, key="f_tahun")
 st.sidebar.button("Atur ulang filter", on_click=atur_ulang_filter)
 
+# --- Unduh data (di sidebar)
+st.sidebar.subheader("Unduh data")
+bersih = semua.drop(columns=["Pengirim", "Tanggal Tertulis (perlu dicek)"]).copy()
+for nama in ("Peserta", "Mitra Kerja", "Catatan Data"):          # daftar -> teks
+    bersih[nama] = bersih[nama].map(lambda isi_sel: "; ".join(isi_sel))
+st.sidebar.download_button("Data bersih (CSV, bisa dibuka di Excel)",
+                           bersih.to_csv(index=False).encode("utf-8-sig"),
+                           file_name="data_kampung_kb_bersih.csv", mime="text/csv")
+st.sidebar.download_button("Data mentah (CSV)", isi,
+                           file_name="data_kampung_kb_mentah.csv", mime="text/csv")
+
 df = semua
 if set(st.session_state["f_seksi"]) != set(opsi_seksi):       
     df = df[df["Seksi"].isin(st.session_state["f_seksi"])]
@@ -149,15 +182,7 @@ st.sidebar.caption("Data diproses di komputer ini dan tidak dikirim ke mana pun.
 st.title(JUDUL)
 st.caption(f"{nama_file} · {angka(len(semua))} laporan")
 
-ring = A.ringkasan(df)
 jumlah_kampung = len(M.daftar_kelurahan_resmi())          
-with st.container(border=True):
-    st.markdown('<div class="kpi-strip-marker"></div>', unsafe_allow_html=True)
-    k = st.columns(4)
-    k[0].metric("Total laporan", angka(ring["total"]))
-    k[1].metric("Jumlah Kampung KB", jumlah_kampung)
-    k[2].metric("Kelurahan yang melapor", ring["kelurahan"])
-    k[3].metric("Separuh laporan masuk dalam", "–" if pd.isna(ring["median_jeda"]) else f"{ring['median_jeda']:.0f} hari")
 if len(df) != len(semua):
     st.caption(f"Filter aktif: menampilkan {angka(len(df))} dari {angka(len(semua))} laporan.")
 
@@ -170,48 +195,37 @@ if df.empty:
     st.warning("Tidak ada laporan yang cocok dengan filter.")
     st.stop()
 
-# sebelas analisis 
-st.subheader("Visualisasi")
 
-st.markdown("##### Gambaran umum")
-kartu(st.container(), G.garis_area(A.a01_per_bulan(df), "Jumlah laporan kegiatan per bulan"))
-st.caption("Bulan terakhir bisa tampak rendah karena laporan sering terlambat masuk.")
+# --- Baris 1: kapan dan di mana
+kiri, kanan = st.columns([2, 1])
 
-kolom = st.columns(2)
-kartu(kolom[0], G.batang_mendatar(A.a05_kecamatan(df), "Laporan menurut kecamatan", 420))
-kartu(kolom[1], G.donat(A.a02_seksi(df), "Laporan menurut seksi", 420))
+kartu(
+    kiri,
+    G.garis_area(
+        A.a01_per_bulan(df),
+        "Jumlah laporan kegiatan per bulan",
+        380
+    )
+)
 
-st.markdown("##### Wilayah dan kegiatan")
-kiri, kanan = st.columns(2)
-data_kel = A.a07_kelurahan(df)
-tinggi_kiri = max(940, 26 * len(data_kel) + 80)          # makin banyak kelurahan, makin tinggi
-kartu(kiri, G.batang_mendatar(data_kel, "Laporan per kelurahan", tinggi_kiri))
-kartu(kanan, G.batang_mendatar(A.a08_jenis_kegiatan(df), "Jenis kegiatan terbanyak (10 teratas)", 500))
-kartu(kanan, G.batang_mendatar(A.a09_sasaran_peserta(df), "Sasaran peserta kegiatan (10 teratas)", tinggi_kiri - 40 - 500))
+kartu_top(
+    kanan,
+    A.a07_kelurahan(df),
+    "Laporan per kelurahan",
+    "lengkap_kel",
+    tinggi=325
+)
 
-st.markdown("##### Siapa dan program")
-kolom = st.columns(2)
-kartu(kolom[0], G.batang_mendatar(A.a04_pengirim(df), "Pengirim laporan terbanyak (10 teratas)", 440))
-kartu(kolom[1], G.batang_mendatar(A.a06_program(df), "Laporan menurut program", 440))
+# --- Baris 2
+k1, k2, k3 = st.columns(3)
+kartu(k1, G.donat(A.a02_seksi(df), "Laporan menurut seksi", 380))
+kartu(k2, G.donat(A.a05_kecamatan(df), "Laporan menurut kecamatan", 380))
+kartu_top(k3, A.a08_jenis_kegiatan(df), "Jenis kegiatan terbanyak", "lengkap_jenis", tinggi=325)
 
-st.markdown("##### Kualitas pelaporan")
-kartu(st.container(), G.batang(A.a03_jeda_lapor(df), "Jeda antara kegiatan dan laporan", 380))
-cek = A.baris_perlu_dicek(df)
-with st.container(border=True):
-    st.markdown("**Laporan yang perlu dicek**")
-    st.caption(f"{angka(len(cek))} laporan. Penandaan ini otomatis dan perlu diperiksa manual.")
-    st.dataframe(cek, hide_index=True, **lebar_penuh(st.dataframe))
-
-with st.expander("Tabel data"):
-
-    tabel = df.drop(columns=["Pengirim", "Tanggal Tertulis (perlu dicek)"]).copy()
-    for nama in ("Peserta", "Mitra Kerja", "Catatan Data"):         # daftar -> teks agar bisa ditampilkan
-        tabel[nama] = tabel[nama].map(lambda isi_sel: "; ".join(isi_sel))
-    cari = st.text_input("Cari di semua kolom", key="f_cari", placeholder="Ketik kata kunci")
-    if cari:
-        cocok = tabel.astype(str).apply(lambda kol: kol.str.contains(cari, case=False, regex=False)).any(axis=1)
-        tabel = tabel[cocok]
-    st.caption(f"{angka(len(tabel))} baris")
-    st.dataframe(tabel, hide_index=True, **lebar_penuh(st.dataframe))
-    st.download_button("Unduh tabel (CSV)", tabel.to_csv(index=False).encode("utf-8-sig"),
-                       file_name="data_kampung_kb.csv", mime="text/csv")
+# --- Baris 3
+k1, k2, k3 = st.columns(3)
+kartu_top(k1, A.a06_program(df), "Laporan menurut program", "lengkap_program", tinggi=300)
+kartu_top(k2, A.a09_sasaran_peserta(df), "Sasaran peserta kegiatan", "lengkap_sasaran", tinggi=300)
+kartu_top(k3, A.a04_pengirim(df), "Pengirim laporan terbanyak", "lengkap_pengirim", tinggi=300)
+#st.download_button("Unduh tabel (CSV)", tabel.to_csv(index=False).encode("utf-8-sig"),
+#                       file_name="data_kampung_kb.csv", mime="text/csv")

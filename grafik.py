@@ -54,34 +54,68 @@ def batang(data, judul, tinggi=320):
     return _tata(fig, judul, tinggi)
 
 
-def batang_mendatar(data, judul, tinggi=420):
-    """Batang mendatar untuk nama panjang (analisis 5, 6, 7, 9, 10, 12). Terbanyak di atas."""
+
+def batang_mendatar(data, judul, tinggi=420, lebar_label=34):
+    """Batang mendatar untuk nama panjang. Tinggi otomatis mengikuti jumlah kategori."""
     if data.empty:
         return _kosong(judul, tinggi)
-    etiket = ["<br>".join(textwrap.wrap(str(t), 34)) or str(t) for t in data["label"]]   # nama panjang dibungkus
+
+    # Membungkus nama kategori yang panjang
+    etiket = ["<br>".join(textwrap.wrap(str(t), lebar_label)) or str(t) for t in data["label"]]
+
+    # Menghitung jumlah baris label agar tidak bertumpuk
+    total_baris = sum(
+        max(1, label.count("<br>") + 1)
+        for label in etiket
+    )
+
+    # Tinggi grafik otomatis berdasarkan jumlah dan panjang label
+    tinggi_otomatis = max(
+        tinggi,
+        28 * len(data) + 14 * (total_baris - len(data)) + 110
+    )
+
     fig = go.Figure(go.Bar(
-        x=data["jumlah"], y=etiket, orientation="h", marker_color=TEAL,
-        customdata=data["label"], text=data["jumlah"], textposition="outside", cliponaxis=False,
-        hovertemplate="%{customdata}: %{x} laporan<extra></extra>"))
-    fig.update_yaxes(autorange="reversed", automargin=True)
-    fig.update_xaxes(range=[0, max(data["jumlah"].max(), 1) * 1.15], gridcolor=GARIS)
-    return _tata(fig, judul, tinggi)
+        x=data["jumlah"],
+        y=etiket,
+        orientation="h",
+        marker_color=TEAL,
+        customdata=data["label"],
+        text=data["jumlah"],
+        textposition="outside",
+        cliponaxis=False,
+        hovertemplate="%{customdata}: %{x} laporan<extra></extra>"
+    ))
+
+    fig.update_yaxes(
+        autorange="reversed",
+        automargin=True,
+        tickfont=dict(size=11)
+    )
+
+    fig.update_xaxes(
+        range=[0, max(data["jumlah"].max(), 1) * 1.15],
+        gridcolor=GARIS
+    )
+
+    return _tata(fig, judul, tinggi_otomatis)
 
 
-def donat(data, judul, tinggi=400):
-    """Komposisi (analisis 2, 4). Lingkaran di atas, legenda di bawahnya (ruang dipisah supaya tidak tumpang tindih)."""
+
+def donat(data, judul, tinggi=380):
+    """Komposisi (kecamatan dan seksi). Lingkaran kecil di atas, legenda di bawahnya."""
     if data.empty:
         return _kosong(judul, tinggi)
     fig = go.Figure(go.Pie(
         labels=data["label"], values=data["jumlah"], hole=0.55, sort=False,
-        domain=dict(x=[0.05, 0.95], y=[0.32, 0.92]),                 # lingkaran hanya memakai bagian atas
+        domain=dict(x=[0.2, 0.8], y=[0.42, 0.92]),            # kotak lingkaran: kecil, di bagian atas
         marker=dict(colors=PALET, line=dict(color="white", width=2)),
-        textinfo="percent", hovertemplate="%{label}: %{value} laporan (%{percent})<extra></extra>"))
+        textinfo="percent", insidetextorientation="horizontal",
+        hovertemplate="%{label}: %{value} laporan (%{percent})<extra></extra>"))
     fig = _tata(fig, judul, tinggi, legenda=True)
-    fig.update_layout(legend=dict(orientation="h", x=0.5, xanchor="center", y=0.0, yanchor="bottom"))
+    fig.update_layout(legend=dict(orientation="v", x=0.5, xanchor="center", y=0.0, yanchor="bottom",
+                                  bgcolor="rgba(0,0,0,0)", borderwidth=0))   # legenda transparan, tanpa bingkai
     return fig
-
-
 
 def batang_target(tabel, target, judul):
     if tabel.empty:
@@ -100,3 +134,4 @@ def batang_target(tabel, target, judul):
     fig = _tata(fig, judul, 26 * len(etiket) + 110, legenda=True)
     fig.update_layout(barmode="overlay", legend=dict(orientation="h", x=1, xanchor="right", y=1.02, yanchor="bottom"))
     return fig
+

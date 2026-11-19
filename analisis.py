@@ -34,7 +34,7 @@ def _hitung(seri, top=None, urut="jumlah", kecuali=(), susunan=None) -> pd.DataF
 
 def a01_per_bulan(df) -> pd.DataFrame:
     """Jumlah laporan per bulan kegiatan (bulan tanpa laporan tetap ditampilkan sebagai 0)."""
-    t = df["Tanggal Kegiatan"].dropna()
+    t = df["Tanggal Kegiatan"].fillna(df["Tanggal Lapor"]).dropna()   # tanggal tidak valid -> bulan laporan
     if t.empty:
         return pd.DataFrame({"label": [], "jumlah": []})
     per = t.dt.to_period("M").value_counts().sort_index()
@@ -52,35 +52,24 @@ def a03_jeda_lapor(df):
     return _hitung(df["Ketepatan Lapor"], susunan=BUCKET)
 
 
-def a04_pengirim(df):
-    """10 pengirim dengan laporan terbanyak."""
-    return _hitung(df["Pengirim"], top=10)
-
-
 def a05_kecamatan(df):
     """Laporan menurut kecamatan (kecamatan dicocokkan dari kecamatan.csv)."""
     return _hitung(df["Kecamatan"])
 
+def a04_pengirim(df):
+    return _hitung(df["Pengirim"])
 
 def a06_program(df):
-    """Laporan menurut program (Program 1, 2, ... Sekretariat)."""
-    return _hitung(df["Program"], urut="label")
-
+    return _hitung(df["Program"])
 
 def a07_kelurahan(df, top=None):
-    """Laporan per kelurahan, terbanyak di atas. top = jumlah kelurahan yang ditampilkan (None = semua)."""
     return _hitung(df["Kelurahan"], top=top)
 
-
 def a08_jenis_kegiatan(df):
-    """12 jenis kegiatan terbanyak."""
-    return _hitung(df["Kegiatan"], top=10)
-
+    return _hitung(df["Kegiatan"])
 
 def a09_sasaran_peserta(df):
-    """10 sasaran peserta terbanyak (satu laporan bisa punya banyak peserta -> dipecah dulu)."""
-    return _hitung(df["Peserta"].explode(), top=10)
-
+    return _hitung(df["Peserta"].explode())
 """
 def a10_tahun_dibentuk(df):
     Laporan menurut tahun Kampung KB dibentuk.
