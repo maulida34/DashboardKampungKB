@@ -4,7 +4,7 @@
   --accent: #0F6E6E; --accent-ink: #0A5555; --accent-soft: #E3F0EF;
 }
 
-.block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px; }
+.block-container { padding-left: 1.5rem; padding-right: 1.5rem; padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1400px; }
 
 [data-testid="stAppDeployButton"], [data-testid="stDeployButton"], [data-testid="stMainMenu"] { display: none; }
 [data-testid="stHeader"] { background: transparent; }
